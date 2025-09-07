@@ -6,7 +6,7 @@ function App() {
   return (
     <>
       <Tasks />
-      <Toaster />
+      <Toaster richColors closeButton position="bottom-left" />
     </>
   );
 }

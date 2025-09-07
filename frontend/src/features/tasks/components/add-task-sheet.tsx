@@ -23,81 +23,166 @@ import { useCreateTask } from "../hooks/useTasks";
 import { useUsersFilterOptions } from "../hooks/useUsers";
 import { priorities, statuses } from "../data/data";
 import { Loader2 } from "lucide-react";
+import { ApiError } from "@/services/api";
+import dayjs from "dayjs";
+import type { Task } from "../types/task";
+import { useForm, Controller } from "react-hook-form";
+import type { SubmitHandler } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
-interface AddTaskSheetProps {
-  children: React.ReactNode;
+// Domain constraints
+const MAX_TITLE_LENGTH = 200;
+const MAX_DESCRIPTION_LENGTH = 5000;
+const VALID_STATUSES = ["todo", "in-progress", "done"] as const;
+const VALID_PRIORITIES = ["low", "medium", "high"] as const;
+
+// Types and schema
+const TaskFormSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, "Title is required")
+      .max(
+        MAX_TITLE_LENGTH,
+        `Title must be ${MAX_TITLE_LENGTH} characters or fewer`
+      ),
+    description: z
+      .string()
+      .max(
+        MAX_DESCRIPTION_LENGTH,
+        `Description is too long (max ${MAX_DESCRIPTION_LENGTH} characters)`
+      ),
+    status: z.enum(VALID_STATUSES),
+    priority: z.enum(VALID_PRIORITIES),
+    due_date_date: z.string().optional(), // YYYY-MM-DD
+    assigned_to: z.number().nullable().optional(),
+  })
+  .refine(
+    (data) => {
+      // valid if empty or a valid YYYY-MM-DD date
+      if (!data.due_date_date) return true;
+      return dayjs(data.due_date_date, "YYYY-MM-DD", true).isValid();
+    },
+    { path: ["due_date_date"], message: "Please pick a valid date" }
+  );
+
+type TaskFormData = z.infer<typeof TaskFormSchema>;
+
+function showBoundaryToast(
+  field: "title" | "description",
+  prevLength: number,
+  nextLength: number
+) {
+  if (
+    field === "title" &&
+    nextLength > MAX_TITLE_LENGTH &&
+    prevLength <= MAX_TITLE_LENGTH
+  ) {
+    toast.error(`Title must be ${MAX_TITLE_LENGTH} characters or fewer`);
+  }
+  if (
+    field === "description" &&
+    nextLength > MAX_DESCRIPTION_LENGTH &&
+    prevLength <= MAX_DESCRIPTION_LENGTH
+  ) {
+    toast.error(
+      `Description is too long (max ${MAX_DESCRIPTION_LENGTH} characters)`
+    );
+  }
 }
 
-export function AddTaskSheet({ children }: AddTaskSheetProps) {
+export function AddTaskSheet({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const { mutate: createTask, isPending } = useCreateTask();
   const { userOptions, isLoading: usersLoading } = useUsersFilterOptions();
 
-  // Simple state management without react-hook-form
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    status: "todo" as "todo" | "in-progress" | "done",
-    priority: "medium" as "low" | "medium" | "high",
-    due_date: "",
-    assigned_to: null as number | null,
-  });
+  const { control, handleSubmit, watch, setValue, reset, formState } =
+    useForm<TaskFormData>({
+      resolver: zodResolver(TaskFormSchema),
+      defaultValues: {
+        title: "",
+        description: "",
+        status: "todo",
+        priority: "medium",
+        due_date_date: "",
+        assigned_to: null,
+      },
+      mode: "onBlur",
+    });
 
-  const handleInputChange = (field: string, value: unknown) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const titleValue = watch("title");
+  const descriptionValue = watch("description");
+
+  const onInvalid = () => {
+    const firstError = Object.values(formState.errors)[0] as
+      | { message?: string }
+      | undefined;
+    if (firstError?.message) toast.error(firstError.message);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.title.trim()) {
-      toast.error("Title is required");
-      return;
+  const onSubmit: SubmitHandler<TaskFormData> = (values) => {
+    let dueIso: string | null = null;
+    if (values.due_date_date) {
+      const d = dayjs(values.due_date_date, "YYYY-MM-DD").startOf("day");
+      if (!d.isValid()) {
+        toast.error("Invalid due date");
+        return;
+      }
+      dueIso = d.toISOString();
     }
 
-    const payload = {
-      ...formData,
-      due_date: formData.due_date
-        ? new Date(formData.due_date).toISOString()
-        : null,
+    const payload: Partial<Task> = {
+      title: values.title.trim(),
+      description: values.description || "",
+      status: values.status,
+      priority: values.priority,
+      due_date: dueIso,
+      assigned_to: values.assigned_to ?? null,
     };
 
     createTask(payload, {
       onSuccess: () => {
         toast.success("Task created successfully!");
-        setFormData({
+        reset({
           title: "",
           description: "",
           status: "todo",
           priority: "medium",
-          due_date: "",
+          due_date_date: "",
           assigned_to: null,
         });
         setOpen(false);
       },
-      onError: (error) => {
-        toast.error("Failed to create task. Please try again.");
+      onError: (error: unknown) => {
+        if (error instanceof ApiError) {
+          const message = error.message || "Failed to create task";
+          const details = error.details;
+          toast.error(details ? `${message}: ${details}` : message);
+        } else if (error && typeof error === "object" && "message" in error) {
+          const message =
+            String((error as { message?: unknown }).message) ||
+            "Failed to create task";
+          toast.error(message);
+        } else {
+          toast.error("Failed to create task");
+        }
         console.error("Error creating task:", error);
       },
     });
   };
 
-  const handleClose = () => {
-    setFormData({
-      title: "",
-      description: "",
-      status: "todo",
-      priority: "medium",
-      due_date: "",
-      assigned_to: null,
-    });
-    setOpen(false);
-  };
-
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>{children}</SheetTrigger>
-      <SheetContent className="w-[400px] sm:w-[540px]">
+      <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Add New Task</SheetTitle>
           <SheetDescription>
@@ -105,7 +190,10 @@ export function AddTaskSheet({ children }: AddTaskSheetProps) {
           </SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6 p-4">
+        <form
+          onSubmit={handleSubmit(onSubmit, onInvalid)}
+          className="space-y-6 p-4"
+        >
           <div className="space-y-4">
             {/* Title */}
             <div className="space-y-2">
@@ -115,8 +203,18 @@ export function AddTaskSheet({ children }: AddTaskSheetProps) {
               <Input
                 id="title"
                 placeholder="Enter task title..."
-                value={formData.title}
-                onChange={(e) => handleInputChange("title", e.target.value)}
+                value={titleValue}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  showBoundaryToast(
+                    "title",
+                    titleValue?.length ?? 0,
+                    next.length
+                  );
+                  setValue("title", next.slice(0, MAX_TITLE_LENGTH), {
+                    shouldDirty: true,
+                  });
+                }}
               />
             </div>
 
@@ -128,10 +226,22 @@ export function AddTaskSheet({ children }: AddTaskSheetProps) {
               <textarea
                 id="description"
                 placeholder="Enter task description..."
-                value={formData.description}
-                onChange={(e) =>
-                  handleInputChange("description", e.target.value)
-                }
+                value={descriptionValue}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  showBoundaryToast(
+                    "description",
+                    descriptionValue?.length ?? 0,
+                    next.length
+                  );
+                  setValue(
+                    "description",
+                    next.slice(0, MAX_DESCRIPTION_LENGTH),
+                    {
+                      shouldDirty: true,
+                    }
+                  );
+                }}
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 rows={3}
               />
@@ -142,24 +252,27 @@ export function AddTaskSheet({ children }: AddTaskSheetProps) {
               <label htmlFor="status" className="text-sm font-medium">
                 Status *
               </label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => handleInputChange("status", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statuses.map((status) => (
-                    <SelectItem key={status.value} value={status.value}>
-                      <div className="flex items-center gap-2">
-                        {status.icon && <status.icon className="h-4 w-4" />}
-                        {status.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Controller
+                control={control}
+                name="status"
+                render={({ field: { value, onChange } }) => (
+                  <Select value={value} onValueChange={onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statuses.map((status) => (
+                        <SelectItem key={status.value} value={status.value}>
+                          <div className="flex items-center gap-2">
+                            {status.icon && <status.icon className="h-4 w-4" />}
+                            {status.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
 
             {/* Priority */}
@@ -167,24 +280,29 @@ export function AddTaskSheet({ children }: AddTaskSheetProps) {
               <label htmlFor="priority" className="text-sm font-medium">
                 Priority *
               </label>
-              <Select
-                value={formData.priority}
-                onValueChange={(value) => handleInputChange("priority", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  {priorities.map((priority) => (
-                    <SelectItem key={priority.value} value={priority.value}>
-                      <div className="flex items-center gap-2">
-                        {priority.icon && <priority.icon className="h-4 w-4" />}
-                        {priority.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Controller
+                control={control}
+                name="priority"
+                render={({ field: { value, onChange } }) => (
+                  <Select value={value} onValueChange={onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {priorities.map((priority) => (
+                        <SelectItem key={priority.value} value={priority.value}>
+                          <div className="flex items-center gap-2">
+                            {priority.icon && (
+                              <priority.icon className="h-4 w-4" />
+                            )}
+                            {priority.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
 
             {/* Assigned To */}
@@ -192,44 +310,74 @@ export function AddTaskSheet({ children }: AddTaskSheetProps) {
               <label htmlFor="assigned_to" className="text-sm font-medium">
                 Assigned To
               </label>
-              <Select
-                value={formData.assigned_to?.toString() || "null"}
-                onValueChange={(value) =>
-                  handleInputChange(
-                    "assigned_to",
-                    value === "null" ? null : Number(value)
-                  )
-                }
-                disabled={usersLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={usersLoading ? "Loading..." : "Select user"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {userOptions.map((user) => (
-                    <SelectItem
-                      key={user.id || "null"}
-                      value={user.id?.toString() || "null"}
-                    >
-                      {user.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Controller
+                control={control}
+                name="assigned_to"
+                render={({ field: { value, onChange } }) => (
+                  <Select
+                    value={value?.toString() || "null"}
+                    onValueChange={(v) =>
+                      onChange(v === "null" ? null : Number(v))
+                    }
+                    disabled={usersLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          usersLoading ? "Loading..." : "Select user"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {userOptions.map((user) => (
+                        <SelectItem
+                          key={user.id || "null"}
+                          value={user.id?.toString() || "null"}
+                        >
+                          {user.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
 
             {/* Due Date */}
             <div className="space-y-2">
-              <label htmlFor="due_date" className="text-sm font-medium">
+              <label className="text-sm font-medium" htmlFor="due_date_date">
                 Due Date
               </label>
-              <Input
-                id="due_date"
-                type="datetime-local"
-                value={formData.due_date}
-                onChange={(e) => handleInputChange("due_date", e.target.value)}
+              <Controller
+                control={control}
+                name="due_date_date"
+                render={({ field: { value, onChange } }) => (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start"
+                      >
+                        {value
+                          ? dayjs(value).format("MMM D, YYYY")
+                          : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={value ? new Date(value) : undefined}
+                        onSelect={(d) => {
+                          const formatted = d
+                            ? dayjs(d).format("YYYY-MM-DD")
+                            : "";
+                          onChange(formatted);
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
               />
             </div>
           </div>
@@ -238,15 +386,26 @@ export function AddTaskSheet({ children }: AddTaskSheetProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={handleClose}
+              onClick={() => {
+                reset({
+                  title: "",
+                  description: "",
+                  status: "todo",
+                  priority: "medium",
+                  due_date_date: "",
+                  assigned_to: null,
+                });
+                setOpen(false);
+              }}
               disabled={isPending}
             >
               Cancel
             </Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? (
-                <span>
-                  <Loader2 className="mr-2 animate-spin" /> Creating...
+                <span className="flex items-center gap-2">
+                  <Loader2 className="mr-2 animate-spin" />{" "}
+                  <span>Creating...</span>
                 </span>
               ) : (
                 <span>Create</span>
