@@ -26,9 +26,9 @@ export async function findTaskById(id: number) {
  * params: status, priority, assigned_to, search, sort, order, limit, offset
  */
 export async function findTasks(params: {
-  status?: string;
-  priority?: string;
-  assigned_to?: number;
+  status?: string[];
+  priority?: string[];
+  assigned_to?: (number | "null")[];
   search?: string;
   sort?: string;
   order?: "asc" | "desc";
@@ -59,17 +59,36 @@ export async function findTasks(params: {
   const where: string[] = [];
 
   let idx = 1;
-  if (status) {
-    where.push(`status = $${idx++}`);
-    values.push(status);
+  if (status && status.length > 0) {
+    const placeholders = status.map(() => `$${idx++}`).join(",");
+    where.push(`status IN (${placeholders})`);
+    values.push(...status);
   }
-  if (priority) {
-    where.push(`priority = $${idx++}`);
-    values.push(priority);
+  if (priority && priority.length > 0) {
+    const placeholders = priority.map(() => `$${idx++}`).join(",");
+    where.push(`priority IN (${placeholders})`);
+    values.push(...priority);
   }
-  if (typeof assigned_to !== "undefined") {
-    where.push(`assigned_to = $${idx++}`);
-    values.push(assigned_to);
+  if (assigned_to && assigned_to.length > 0) {
+    // Handle mixed array of numbers and "null" strings
+    const nullValues = assigned_to.filter((v) => v === "null");
+    const numberValues = assigned_to.filter(
+      (v): v is number => typeof v === "number"
+    );
+
+    const conditions: string[] = [];
+    if (numberValues.length > 0) {
+      const placeholders = numberValues.map(() => `$${idx++}`).join(",");
+      conditions.push(`assigned_to IN (${placeholders})`);
+      values.push(...numberValues);
+    }
+    if (nullValues.length > 0) {
+      conditions.push(`assigned_to IS NULL`);
+    }
+
+    if (conditions.length > 0) {
+      where.push(`(${conditions.join(" OR ")})`);
+    }
   }
   if (search) {
     where.push(

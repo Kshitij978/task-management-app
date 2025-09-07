@@ -26,12 +26,36 @@ export const getAllTasks = async (
   next: NextFunction
 ) => {
   try {
+    // Parse comma-separated values for multiple selection
+    const parseCommaSeparated = (
+      value: string | undefined
+    ): string[] | undefined => {
+      if (!value) return undefined;
+      return value
+        .split(",")
+        .map((v) => v.trim())
+        .filter((v) => v.length > 0);
+    };
+
+    const parseAssignedTo = (
+      value: string | undefined
+    ): (number | "null")[] | undefined => {
+      if (!value) return undefined;
+      return value
+        .split(",")
+        .map((v) => {
+          const trimmed = v.trim();
+          if (trimmed === "null") return "null" as const;
+          const num = Number(trimmed);
+          return Number.isNaN(num) ? undefined : num;
+        })
+        .filter((v): v is number | "null" => v !== undefined);
+    };
+
     const params = {
-      status: req.query.status as string | undefined,
-      priority: req.query.priority as string | undefined,
-      assigned_to: req.query.assigned_to
-        ? Number(req.query.assigned_to)
-        : undefined,
+      status: parseCommaSeparated(req.query.status as string | undefined),
+      priority: parseCommaSeparated(req.query.priority as string | undefined),
+      assigned_to: parseAssignedTo(req.query.assigned_to as string | undefined),
       search: req.query.search as string | undefined,
       sort: (req.query.sort as string) || "created_at",
       order:
