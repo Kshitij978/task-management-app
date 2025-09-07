@@ -38,6 +38,7 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   initialPageSize?: number;
+  totalCount?: number; // total results for server-side pagination
 
   onStateChange?: (state: {
     pageIndex: number;
@@ -63,8 +64,11 @@ export function DataTable<TData, TValue>({
     []
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  // We keep pagination local and let react-table manage it;
-  // we will read values from table.getState().pagination and emit them
+  const [paginationState, setPaginationState] = React.useState({
+    pageIndex: 0,
+    pageSize: initialPageSize,
+  });
+
   const table = useReactTable({
     data,
     columns,
@@ -73,18 +77,17 @@ export function DataTable<TData, TValue>({
       columnVisibility,
       rowSelection,
       columnFilters,
+      pagination: paginationState,
     },
-    initialState: {
-      pagination: {
-        pageIndex: 0,
-        pageSize: initialPageSize,
-      },
-    },
+    initialState: {},
+    // Always use server-side pagination; total pages unknown
+    manualPagination: true,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    onPaginationChange: setPaginationState,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -122,13 +125,16 @@ export function DataTable<TData, TValue>({
     pageSize,
   ]);
 
+  const headerGroups = table.getHeaderGroups();
+  const rowModel = table.getRowModel();
+
   return (
     <div className="flex flex-col gap-4">
       <DataTableToolbar table={table} onUserFilterChange={onUserFilterChange} />
       <div className="overflow-hidden rounded-md border">
         <Table>
           <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
+            {headerGroups.map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
@@ -146,8 +152,8 @@ export function DataTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
+            {rowModel.rows?.length ? (
+              rowModel.rows.map((row) => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
