@@ -1,5 +1,5 @@
 import "./App.css";
-import Tasks from "./features/tasks/components/data-table";
+import Tasks from "./features/tasks/components";
 
 function App() {
   return (

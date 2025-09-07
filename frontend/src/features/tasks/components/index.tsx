@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
-import { columns } from "./columns";
-import { DataTable } from "./data-table";
-import type { TaskQueryParams } from "../../types/task";
+import { columns } from "./data-table/columns";
+import { DataTable } from "./data-table/data-table";
+import type { TaskQueryParams } from "../types/task";
 import { debounce } from "@/utils/debounce";
-import { useTasks } from "../../hooks/useTasks";
+import { useTasks } from "../hooks/useTasks";
 import type { SortingState, ColumnFiltersState } from "@tanstack/react-table";
 
 export default function Tasks() {
