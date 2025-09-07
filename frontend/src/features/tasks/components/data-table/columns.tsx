@@ -175,6 +175,6 @@ export const columns: ColumnDef<Task>[] = [
   },
   {
     id: "actions",
-    cell: () => <DataTableRowActions />,
+    cell: ({ row }) => <DataTableRowActions task={row.original} />,
   },
 ];
