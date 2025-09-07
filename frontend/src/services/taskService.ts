@@ -1,32 +1,34 @@
+import type {
+  PagedResult,
+  Task,
+  TaskQueryParams,
+} from "@/features/tasks/types/task";
 import client from "./api";
 
-export type Task = {
-  id: number;
-  title: string;
-  description?: string | null;
-  status: "todo" | "in-progress" | "done";
-  priority: "low" | "medium" | "high";
-  due_date?: string | null;
-  assigned_to?: number | null;
-  assigned_user_name?: string | null; // from LEFT JOIN
-  created_at: string;
-  updated_at: string;
-};
+export const fetchTasks = async (
+  params?: TaskQueryParams
+): Promise<PagedResult<Task>> => {
+  const limit = params?.pageSize ?? 25;
+  const offset =
+    typeof params?.page === "number" ? (params.page - 1) * limit : 0;
 
-export type TaskQueryParams = {
-  status?: Task["status"];
-  priority?: Task["priority"];
-  assigned_to?: number | null;
-  search?: string;
-  sort?: "created_at" | "due_date" | "priority" | "id";
-  order?: "asc" | "desc";
-  limit?: number;
-  offset?: number;
-};
+  const query: Record<string, unknown> = { limit, offset };
 
-export const fetchTasks = async (params?: TaskQueryParams): Promise<Task[]> => {
-  const res = await client.get<Task[]>("/tasks", { params });
-  return res.data;
+  if (params?.search) query.search = params.search;
+  if (params?.status) query.status = params.status;
+  if (params?.priority) query.priority = params.priority;
+
+  console.log(params);
+
+  const res = await client.get<Task[]>("/tasks", { params: query });
+  const tasks = res.data;
+  // Prefer X-Total-Count header if backend provides it (common pattern)
+  const headerTotal = res.headers?.["x-total-count"];
+  const total =
+    typeof headerTotal === "string" && headerTotal !== ""
+      ? Number(headerTotal)
+      : tasks.length;
+  return { items: tasks, total };
 };
 
 export const fetchTask = async (id: number): Promise<Task> => {
