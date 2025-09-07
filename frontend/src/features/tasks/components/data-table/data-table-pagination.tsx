@@ -27,11 +27,11 @@ export function DataTablePagination<TData>({
   const canNext = rowCount >= pageSize; // server returned a full page → may have more
 
   return (
-    <div className="flex items-center justify-between px-2">
-      <div className="text-muted-foreground flex-1 text-sm">
+    <div className="flex items-center justify-between px-2 ">
+      {/* <div className="text-muted-foreground flex-1 text-sm text-left">
         {table.getFilteredSelectedRowModel().rows.length} selected
-      </div>
-      <div className="flex items-center space-x-4">
+      </div> */}
+      <div className="flex items-center space-x-4 w-full justify-center">
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">Rows</p>
           <Select
