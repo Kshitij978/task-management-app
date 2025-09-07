@@ -46,67 +46,85 @@ export async function findTasks(params: {
     offset = 0,
   } = params;
 
-  const allowedSortFields = new Set([
-    "created_at",
-    "due_date",
-    "priority",
-    "id",
-  ]);
-  if (!allowedSortFields.has(sort))
-    throw Object.assign(new Error("Invalid sort field"), { statusCode: 400 });
+  // whitelist of allowed sort -> actual column (fully controlled)
+  const SORT_MAP: Record<string, string> = {
+    created_at: "created_at",
+    updated_at: "updated_at",
+    due_date: "due_date",
+    priority: "priority",
+    id: "id",
+    title: "title",
+  };
 
-  const values: any[] = [];
+  if (!(sort in SORT_MAP)) {
+    const err: any = new Error("Invalid sort field");
+    err.statusCode = 400;
+    throw err;
+  }
+  const sortCol = SORT_MAP[sort];
+
+  const values: unknown[] = [];
   const where: string[] = [];
-
   let idx = 1;
+
+  // status IN (...)
   if (status && status.length > 0) {
     const placeholders = status.map(() => `$${idx++}`).join(",");
-    where.push(`status IN (${placeholders})`);
+    where.push(`t.status IN (${placeholders})`);
     values.push(...status);
   }
+
+  // priority IN (...)
   if (priority && priority.length > 0) {
     const placeholders = priority.map(() => `$${idx++}`).join(",");
-    where.push(`priority IN (${placeholders})`);
+    where.push(`t.priority IN (${placeholders})`);
     values.push(...priority);
   }
+
+  // assigned_to: array of numbers and/or "null"
   if (assigned_to && assigned_to.length > 0) {
-    // Handle mixed array of numbers and "null" strings
-    const nullValues = assigned_to.filter((v) => v === "null");
     const numberValues = assigned_to.filter(
       (v): v is number => typeof v === "number"
     );
+    const hasNull = assigned_to.some((v) => v === "null");
 
     const conditions: string[] = [];
     if (numberValues.length > 0) {
       const placeholders = numberValues.map(() => `$${idx++}`).join(",");
-      conditions.push(`assigned_to IN (${placeholders})`);
+      conditions.push(`t.assigned_to IN (${placeholders})`);
       values.push(...numberValues);
     }
-    if (nullValues.length > 0) {
-      conditions.push(`assigned_to IS NULL`);
+    if (hasNull) {
+      conditions.push(`t.assigned_to IS NULL`);
     }
-
     if (conditions.length > 0) {
       where.push(`(${conditions.join(" OR ")})`);
     }
   }
-  if (search) {
+
+  // full-text search
+  if (search && search.trim().length > 0) {
     where.push(
-      `to_tsvector('english', coalesce(title,'') || ' ' || coalesce(description,'')) @@ plainto_tsquery('english', $${idx++})`
+      `to_tsvector('english', coalesce(t.title,'') || ' ' || coalesce(t.description,'')) @@ plainto_tsquery('english', $${idx++})`
     );
     values.push(search);
   }
 
   const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
+  // deterministic order: primary sort + id as tiebreaker
+  const orderDir = order === "asc" ? "ASC" : "DESC";
+  const orderClause = `ORDER BY t.${sortCol} ${orderDir}, t.id ${orderDir}`;
+
   const q = `
-    SELECT t.*, u.full_name as assigned_user_name
-    FROM tasks t
-    LEFT JOIN users u ON t.assigned_to = u.id
-    ${whereClause}
-    ORDER BY ${sort} ${order === "asc" ? "ASC" : "DESC"}
-    LIMIT $${idx++} OFFSET $${idx++}
-  `;
+  SELECT t.*, u.full_name as assigned_user_name,
+         COUNT(*) OVER() AS total_count
+  FROM tasks t
+  LEFT JOIN users u ON t.assigned_to = u.id
+  ${whereClause}
+  ${orderClause}
+  LIMIT $${idx++} OFFSET $${idx++}
+`;
   values.push(limit, offset);
   const { rows } = await pool.query<TaskRow>(q, values);
   return rows;
