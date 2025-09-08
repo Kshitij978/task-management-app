@@ -1,0 +1,603 @@
+openapi: 3.0.3
+info:
+  title: Task Management API
+  version: 1.0.0
+  description: |
+    RESTful Task Management API.
+    - Backend: Node/Express + PostgreSQL
+    - Primary resources: **users**, **tasks**
+    Error response format:
+    ```json
+    { "error": "Error message", "details": "Additional details (optional)" }
+    ```
+servers:
+  - url: http://localhost:3001/api
+    description: Local dev server
+
+paths:
+  /users:
+    get:
+      summary: Get all users
+      description: Returns a (paginated) list of users. Use `limit`/`offset` for pagination.
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+      responses:
+        "200":
+          description: Array of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      summary: Create a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+            example:
+              username: alice
+              email: alice@example.com
+              full_name: Alice Example
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /users/{id}:
+    get:
+      summary: Get user by ID
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          description: User object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      summary: Update user
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      requestBody:
+        description: Partial user fields (username / email / full_name). At least one must be provided.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+            example:
+              full_name: Alice Renamed
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      summary: Delete user (transactional)
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      description: |
+        Delete a user. Tasks that were assigned to that user will be handled gracefully.
+        (Database schema uses `ON DELETE SET NULL` or the application unassigns tasks in a transaction.)
+      responses:
+        "200":
+          description: Deletion summary (deleted flag + affected task ids)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                  affectedTasksCount:
+                    type: integer
+                  affectedTaskIds:
+                    type: array
+                    items:
+                      type: integer
+                  message:
+                    type: string
+                example:
+                  deleted: true
+                  affectedTasksCount: 3
+                  affectedTaskIds: [5, 8, 12]
+                  message: "User deleted. Their tasks are now unassigned."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /tasks:
+    get:
+      summary: Get tasks (filtering, search, sort, pagination)
+      description: |
+        Supports filtering by `status`, `priority`, `assigned_to` (comma separated),
+        search (title + description), date range (`due_date_from`, `due_date_to`),
+        sorting (`sort`, `order`), and pagination (`limit`, `offset`).
+        `assigned_to` accepts user IDs like `1,2` and the literal string `null` to include unassigned tasks:
+        - `assigned_to=1,2` => tasks assigned to users 1 or 2
+        - `assigned_to=null` => unassigned tasks
+        - `assigned_to=1,null` => tasks assigned to user 1 OR unassigned
+      parameters:
+        - $ref: "#/components/parameters/status"
+        - $ref: "#/components/parameters/priority"
+        - $ref: "#/components/parameters/assigned_to"
+        - $ref: "#/components/parameters/search"
+        - $ref: "#/components/parameters/due_date_from"
+        - $ref: "#/components/parameters/due_date_to"
+        - $ref: "#/components/parameters/sort"
+        - $ref: "#/components/parameters/order"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+      responses:
+        "200":
+          description: Array of tasks (each row includes total_count field for pagination when present)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: "#/components/schemas/Task"
+                    - type: object
+                      properties:
+                        total_count:
+                          type: integer
+              examples:
+                example:
+                  summary: Sample response (items include total_count for first row)
+                  value:
+                    - id: 10
+                      title: "Deploy to production"
+                      description: "Deploy ..."
+                      status: "todo"
+                      priority: "high"
+                      due_date: "2025-09-10"
+                      assigned_to: 2
+                      assigned_user_name: "Jane Dev"
+                      created_at: "2025-09-01T10:00:00Z"
+                      updated_at: "2025-09-01T10:00:00Z"
+                      total_count: 125
+                    - id: 11
+                      title: "Integration testing"
+                      description: "..."
+                      status: "in-progress"
+                      priority: "medium"
+                      due_date: "2025-09-12"
+                      assigned_to: null
+                      assigned_user_name: null
+                      created_at: "2025-09-02T09:00:00Z"
+                      updated_at: "2025-09-02T09:00:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      summary: Create task
+      requestBody:
+        description: Task attributes
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskCreate"
+            example:
+              title: "New task"
+              description: "Do something"
+              status: "todo"
+              priority: "medium"
+              due_date: "2025-09-20"
+              assigned_to: 2
+      responses:
+        "201":
+          description: Created task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /tasks/{id}:
+    get:
+      summary: Get task by ID
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          description: Task object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      summary: Update task (supports optimistic locking)
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      requestBody:
+        description: Partial fields to update. If `updated_at` is provided it will be used as optimistic lock.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdate"
+            example:
+              title: "Updated title"
+              priority: "high"
+              assigned_to: null
+              updated_at: "2025-09-01T10:00:00Z"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Conflict (optimistic lock or duplicate)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                optimisticLock:
+                  summary: optimistic lock conflict
+                  value:
+                    error: "Task was modified by someone else"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      summary: Delete task
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "204":
+          description: No Content (deleted)
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  parameters:
+    idPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: Numeric resource id
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+      description: Maximum items to return
+    offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+      description: Offset for pagination
+    status:
+      name: status
+      in: query
+      schema:
+        type: string
+      description: "Comma-separated status filter, allowed values: todo,in-progress,done (e.g. `status=todo,in-progress`)"
+    priority:
+      name: priority
+      in: query
+      schema:
+        type: string
+      description: "Comma-separated priority filter, allowed values: low,medium,high (e.g. `priority=high`)"
+    assigned_to:
+      name: assigned_to
+      in: query
+      schema:
+        type: string
+      description: Comma-separated user IDs or `null` to include unassigned (e.g. `assigned_to=1,2` or `assigned_to=null` or `assigned_to=1,null`)
+    search:
+      name: search
+      in: query
+      schema:
+        type: string
+      description: Full text search across title and description (plain text). Partial matches supported via ILIKE fallback.
+    due_date_from:
+      name: due_date_from
+      in: query
+      schema:
+        type: string
+        format: date
+      description: Inclusive due date (YYYY-MM-DD)
+    due_date_to:
+      name: due_date_to
+      in: query
+      schema:
+        type: string
+        format: date
+      description: Inclusive due date (YYYY-MM-DD)
+    sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+        enum: [created_at, updated_at, due_date, priority, id, title]
+        default: created_at
+      description: Field to sort by
+    order:
+      name: order
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+      description: Sort order
+
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - full_name
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      example:
+        id: 1
+        username: john_doe
+        email: john.doe@example.com
+        full_name: John Doe
+        created_at: "2025-01-15T10:30:00Z"
+        updated_at: "2025-01-15T10:30:00Z"
+
+    UserCreate:
+      type: object
+      required: [username, email, full_name]
+      properties:
+        username:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        full_name:
+          type: string
+          maxLength: 100
+
+    UserUpdate:
+      type: object
+      properties:
+        username:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        full_name:
+          type: string
+          maxLength: 100
+      minProperties: 1
+
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - priority
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [todo, in-progress, done]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        assigned_to:
+          type: integer
+          nullable: true
+        assigned_user_name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      example:
+        id: 10
+        title: "Deploy to production"
+        description: "Deploy the latest build to production"
+        status: "todo"
+        priority: "high"
+        due_date: "2025-09-10"
+        assigned_to: 2
+        assigned_user_name: "Jane Dev"
+        created_at: "2025-09-01T10:00:00Z"
+        updated_at: "2025-09-01T10:00:00Z"
+
+    TaskCreate:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+          nullable: true
+        status:
+          type: string
+          enum: [todo, in-progress, done]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        assigned_to:
+          type: integer
+          nullable: true
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+          nullable: true
+        status:
+          type: string
+          enum: [todo, in-progress, done]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        assigned_to:
+          type: integer
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+      minProperties: 1
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: string
+          nullable: true
+      example:
+        error: "Invalid request data"
+        details: "title is required; due_date invalid"
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Invalid request"
+            details: "Invalid date format for due_date"
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "User not found"
+    Conflict:
+      description: Conflict (duplicate or optimistic lock)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Username or email already exists"
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Internal server error"
+            details: "DB connection failed"
+
+tags:
+  - name: users
+    description: Operations related to users
+  - name: tasks
+    description: Operations related to tasks
