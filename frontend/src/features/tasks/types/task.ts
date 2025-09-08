@@ -20,6 +20,8 @@ export type TaskQueryParams = {
   assigned_to?: string; // comma-separated values like "1,2,null"
   sort?: string;
   order?: "asc" | "desc";
+  due_date_from?: string;
+  due_date_to?: string;
 };
 
 export type PagedResult<T> = {

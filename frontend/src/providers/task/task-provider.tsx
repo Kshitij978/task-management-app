@@ -1,4 +1,3 @@
-// src/context/TaskContext.tsx
 import React, {
   useCallback,
   useEffect,
@@ -16,7 +15,7 @@ import {
   clearCommonFiltersWhenNoColumnFilters,
   haveWatchedFiltersChanged,
 } from "@/features/tasks/utils/queryParams";
-import { useTasks } from "@/features/tasks/hooks/useTasks"; // move fetching into provider
+import { useTasks } from "@/features/tasks/hooks/useTasks";
 import { TaskContext } from "./task-context";
 
 type BuildSnapshot = {
@@ -36,6 +35,7 @@ export interface TaskContextValue {
     patch: Partial<TaskQueryParams>,
     opts?: { resetPage?: boolean }
   ) => void;
+  resetFilters: () => void;
 
   // selected user ids / setter
   selectedUserIds: (number | "null")[];
@@ -69,6 +69,9 @@ export function TaskProvider({
     ...initial,
   });
 
+  // When true, the next table snapshot should be ignored to avoid rehydrating cleared filters
+  const [ignoreNextSnapshot, setIgnoreNextSnapshot] = useState(false);
+
   const paramsRef = useRef<TaskQueryParams>(params);
   useEffect(() => {
     paramsRef.current = params;
@@ -95,13 +98,30 @@ export function TaskProvider({
   const mergeParams = useCallback(
     (patch: Partial<TaskQueryParams>, opts?: { resetPage?: boolean }) => {
       setParamsState((prev) => {
-        const merged = { ...prev, ...patch };
+        const merged: TaskQueryParams = {
+          ...prev,
+          ...patch,
+        } as TaskQueryParams;
+        // Remove keys explicitly set to undefined in the patch
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === undefined) {
+            delete (merged as Record<string, unknown>)[key];
+          }
+        }
         if (opts?.resetPage) merged.page = 1;
         return merged;
       });
     },
     []
   );
+
+  const resetFilters = useCallback(() => {
+    // Clear selected users and reset core params only (page + size)
+    setSelectedUserIds([]);
+    setParamsState((prev) => ({ page: 1, pageSize: prev.pageSize ?? 25 }));
+    // Ignore the next emitted table snapshot caused by resetting table state
+    setIgnoreNextSnapshot(true);
+  }, []);
 
   // selected users
   const [selectedUserIds, setSelectedUserIds] = useState<(number | "null")[]>(
@@ -162,10 +182,14 @@ export function TaskProvider({
   // handleStateChange & handleUserFilterChange (exposed for DataTable)
   const handleStateChange = useCallback(
     (snapshot: BuildSnapshot) => {
+      if (ignoreNextSnapshot) {
+        setIgnoreNextSnapshot(false);
+        return;
+      }
       const next = buildParamsFromSnapshot(snapshot);
       scheduleParams(next);
     },
-    [buildParamsFromSnapshot, scheduleParams]
+    [buildParamsFromSnapshot, scheduleParams, ignoreNextSnapshot]
   );
 
   const handleUserFilterChange = useCallback(
@@ -179,7 +203,6 @@ export function TaskProvider({
     [mergeParams]
   );
 
-  // Move data fetching into provider by calling useTasks(params)
   const { data, isLoading, error, refetch } = useTasks(params);
 
   const value = useMemo(
@@ -189,6 +212,7 @@ export function TaskProvider({
       setParams,
       scheduleParams,
       mergeParams,
+      resetFilters,
       selectedUserIds,
       setSelectedUserIds,
       handleStateChange,
@@ -204,6 +228,7 @@ export function TaskProvider({
       setParams,
       scheduleParams,
       mergeParams,
+      resetFilters,
       selectedUserIds,
       setSelectedUserIds,
       handleStateChange,

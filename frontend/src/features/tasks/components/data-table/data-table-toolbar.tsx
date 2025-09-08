@@ -12,6 +12,8 @@ import { useSheet } from "@/providers/sheet/sheet-context";
 import { useUserContext } from "@/providers/user/user-context";
 import { useTaskContext } from "@/providers/task/task-context";
 
+import { DataTableDueDateFilter } from "./data-table-duedate-filter";
+
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
 }
@@ -25,13 +27,31 @@ export function DataTableToolbar<TData>({
     error: usersError,
   } = useUserContext();
   const { openSheet } = useSheet();
-  const isFiltered = table.getState().columnFilters.length > 0;
-
-  const { handleServerSortChange, handleUserFilterChange, params } =
-    useTaskContext();
+  const {
+    handleServerSortChange,
+    handleUserFilterChange,
+    params,
+    mergeParams,
+    resetFilters,
+  } = useTaskContext();
 
   const sortBy = params.sort;
   const sortOrder = params.order;
+
+  const dueFrom = params.due_date_from
+    ? new Date(String(params.due_date_from))
+    : undefined;
+  const dueTo = params.due_date_to
+    ? new Date(String(params.due_date_to))
+    : undefined;
+  const hasDueRange = Boolean(dueFrom || dueTo);
+
+  const isFiltered = table.getState().columnFilters.length > 0 || hasDueRange;
+
+  const isSorting =
+    table.getState().sorting.length > 0 ||
+    sortBy !== undefined ||
+    sortOrder !== undefined;
 
   // Log error if users fail to load
   if (usersError) {
@@ -73,16 +93,13 @@ export function DataTableToolbar<TData>({
             }}
           />
         )}
-        {isFiltered && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => table.resetColumnFilters()}
-          >
-            Reset
-            <X />
-          </Button>
-        )}
+
+        <DataTableDueDateFilter
+          dueFrom={dueFrom}
+          dueTo={dueTo}
+          params={params}
+          mergeParams={mergeParams}
+        />
 
         <DataTableSortbyPopover
           sortBy={sortBy}
@@ -91,6 +108,22 @@ export function DataTableToolbar<TData>({
             handleServerSortChange?.({ sortBy, sortOrder });
           }}
         />
+
+        {(isFiltered || isSorting) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              table.resetColumnFilters();
+              table.resetSorting();
+              handleUserFilterChange?.([]);
+              resetFilters();
+            }}
+          >
+            Reset
+            <X />
+          </Button>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <DataTableViewOptions table={table} />
