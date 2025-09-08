@@ -1,9 +1,15 @@
-/** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  testMatch: ["**/tests/**/*.test.ts"],
-  verbose: true,
+  testMatch: ["<rootDir>/tests/unit/**/*.test.ts"],
+  setupFilesAfterEnv: ["<rootDir>/tests/unit/setup.unit.ts"],
+  collectCoverage: true,
+  collectCoverageFrom: [
+    "src/**/*.ts",
+    "!src/index.ts", // exclude startup bootstrap
+    "!src/**/*.d.ts",
+  ],
+  coverageDirectory: "<rootDir>/coverage",
   clearMocks: true,
-  setupFilesAfterEnv: [],
+  testTimeout: 10000,
 };
