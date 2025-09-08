@@ -1,21 +1,28 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { columns } from "./data-table/columns";
 import { DataTable } from "./data-table/data-table";
 import type { TaskQueryParams } from "../types/task";
 import { debounce } from "@/utils/debounce";
 import { useTasks } from "../hooks/useTasks";
 import type { SortingState, ColumnFiltersState } from "@tanstack/react-table";
+import {
+  applyColumnFilter,
+  applySortingIfNeeded,
+  clearCommonFiltersWhenNoColumnFilters,
+  haveWatchedFiltersChanged,
+} from "../utils/queryParams";
 
 export default function Tasks() {
   const [serverParams, setServerParams] = useState<TaskQueryParams>({
     page: 1,
     pageSize: 25,
   });
-  const [selectedUserIds, setSelectedUserIds] = useState<(number | "null")[]>(
-    []
-  );
 
-  console.log(serverParams);
+  const serverParamsRef = useRef<TaskQueryParams>(serverParams);
+
+  useEffect(() => {
+    serverParamsRef.current = serverParams;
+  }, [serverParams]);
 
   const scheduleSet = useMemo(
     () =>
@@ -26,62 +33,60 @@ export default function Tasks() {
     []
   );
 
+  const [selectedUserIds, setSelectedUserIds] = useState<(number | "null")[]>(
+    []
+  );
   const { data } = useTasks(serverParams);
 
   const items = data?.items ?? [];
 
-  // Simple mapping: table emits (pageIndex: 0-based, pageSize, sorting, columnFilters)
   const handleStateChange = useCallback(
-    (state: {
+    (snapshot: {
       pageIndex: number;
       pageSize: number;
       sorting: SortingState;
       columnFilters: ColumnFiltersState;
     }) => {
-      const next: TaskQueryParams = {
-        page: state.pageIndex + 1,
-        pageSize: state.pageSize,
+      const previousParams = serverParamsRef.current;
+      const nextParams: TaskQueryParams = {
+        ...previousParams,
+        page: snapshot.pageIndex + 1,
+        pageSize: snapshot.pageSize,
       };
 
-      // translate columnFilters array into API params
-      // column filter object shape: { id: string, value: any }
-      for (const f of state.columnFilters ?? []) {
-        const id = String(f.id);
-        const value = f.value;
-        // common columns mapping:
-        if (id === "title") {
-          next.search = typeof value === "string" ? value.trim() : undefined;
-        } else if (id === "status") {
-          // if filter value is array -> send as array, service accepts array or CSV
-          next.status = Array.isArray(value)
-            ? value.join(",")
-            : (value as string | undefined);
-        } else if (id === "priority") {
-          next.priority = Array.isArray(value)
-            ? value.join(",")
-            : (value as string | undefined);
-        } else if (id === "assigned_user_name") {
-          // Use the selected user IDs from the custom filter
-          if (selectedUserIds.length > 0) {
-            next.assigned_to = selectedUserIds.join(",");
-          }
-        } else if (id === "due_date") {
-          // if you implement date-range as two columns like due_date_from/due_date_to adjust here
-        } else {
-          console.log("unknown column filter", id, value);
-          // generic fallback: set key directly
-          (next as Record<string, unknown>)[id] = value;
-        }
+      // apply every column filter
+      for (const columnFilter of snapshot.columnFilters ?? []) {
+        const columnId = String(columnFilter.id);
+        applyColumnFilter(
+          nextParams,
+          columnId,
+          columnFilter.value,
+          selectedUserIds
+        );
       }
 
-      // sorting simple handling: use first sort descriptor
-      if (Array.isArray(state.sorting) && state.sorting.length > 0) {
-        const s = state.sorting[0];
-        next.sort = s.id;
-        next.order = s.desc ? "desc" : "asc";
+      // if there were no column filters, clear common keys to avoid stale filtering
+      clearCommonFiltersWhenNoColumnFilters(
+        nextParams,
+        snapshot.columnFilters,
+        selectedUserIds
+      );
+
+      // apply sorting and reset page if change detected
+      applySortingIfNeeded(nextParams, previousParams, snapshot.sorting);
+
+      // if any watched filters changed, reset page to 1
+      const watchedKeys: (keyof TaskQueryParams)[] = [
+        "status",
+        "priority",
+        "search",
+        "assigned_to",
+      ];
+      if (haveWatchedFiltersChanged(previousParams, nextParams, watchedKeys)) {
+        nextParams.page = 1;
       }
 
-      scheduleSet(next);
+      scheduleSet(nextParams);
     },
     [scheduleSet, selectedUserIds]
   );
@@ -90,6 +95,18 @@ export default function Tasks() {
     setSelectedUserIds(userIds);
   }, []);
 
+  const handleServerSortChange = useCallback(
+    (payload: { sortBy?: string; sortOrder?: "asc" | "desc" | undefined }) => {
+      setServerParams((prev) => ({
+        ...prev,
+        sort: payload.sortBy ?? prev.sort,
+        order: payload.sortOrder ?? prev.order,
+        page: 1, // reset to first page when server sort changes
+      }));
+    },
+    []
+  );
+
   return (
     <div className="w-full">
       <DataTable
@@ -97,6 +114,9 @@ export default function Tasks() {
         columns={columns}
         onStateChange={handleStateChange}
         onUserFilterChange={handleUserFilterChange}
+        onServerSortChange={handleServerSortChange}
+        currentSort={serverParams.sort}
+        currentSortOrder={serverParams.order}
       />
     </div>
   );

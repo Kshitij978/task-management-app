@@ -8,22 +8,34 @@ import { DataTableViewOptions } from "./data-table-view-options";
 import { priorities, statuses } from "../../data/data";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 import { useUsersFilterOptions } from "../../hooks/useUsers";
-import { AddTaskSheet } from "../add-task-sheet";
+import { DataTableSortbyPopover } from "./data-table-sortby-popover";
+import { useSheet } from "@/providers/sheet/sheet-context";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
+  sortBy?: string;
+  sortOrder: "asc" | "desc" | undefined;
   onUserFilterChange?: (userIds: (number | "null")[]) => void;
+
+  onServerSortChange?: (payload: {
+    sortBy?: string;
+    sortOrder?: "asc" | "desc" | undefined;
+  }) => void;
 }
 
 export function DataTableToolbar<TData>({
   table,
+  sortBy,
+  sortOrder,
   onUserFilterChange,
+  onServerSortChange,
 }: DataTableToolbarProps<TData>) {
   const {
     userOptions: users,
     isLoading: usersLoading,
     error: usersError,
   } = useUsersFilterOptions();
+  const { openSheet } = useSheet();
   const isFiltered = table.getState().columnFilters.length > 0;
 
   // Log error if users fail to load
@@ -62,7 +74,7 @@ export function DataTableToolbar<TData>({
             title={usersLoading ? "Loading..." : "Assigned To"}
             options={users}
             onFilterChange={(_, userIds) => {
-              onUserFilterChange?.(userIds ?? []);
+              onUserFilterChange?.(userIds?.length ? userIds : []);
             }}
           />
         )}
@@ -76,12 +88,20 @@ export function DataTableToolbar<TData>({
             <X />
           </Button>
         )}
+
+        <DataTableSortbyPopover
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onChange={({ sortBy, sortOrder }) => {
+            onServerSortChange?.({ sortBy, sortOrder });
+          }}
+        />
       </div>
       <div className="flex items-center gap-2">
         <DataTableViewOptions table={table} />
-        <AddTaskSheet>
-          <Button size="sm">Add Task</Button>
-        </AddTaskSheet>
+        <Button onClick={() => openSheet({ mode: "create" })} size="sm">
+          Add Task
+        </Button>
       </div>
     </div>
   );

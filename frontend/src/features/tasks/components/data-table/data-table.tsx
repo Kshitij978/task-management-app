@@ -6,9 +6,7 @@ import {
   getCoreRowModel,
   getFacetedRowModel,
   getFacetedUniqueValues,
-  getFilteredRowModel,
   getPaginationRowModel,
-  getSortedRowModel,
   type SortingState,
   useReactTable,
   type VisibilityState,
@@ -39,7 +37,8 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   initialPageSize?: number;
   totalCount?: number; // total results for server-side pagination
-
+  currentSort?: string;
+  currentSortOrder?: "asc" | "desc" | undefined;
   onStateChange?: (state: {
     pageIndex: number;
     pageSize: number;
@@ -48,14 +47,21 @@ interface DataTableProps<TData, TValue> {
     columnVisibility: VisibilityState;
   }) => void;
   onUserFilterChange?: (userIds: (number | "null")[]) => void;
+  onServerSortChange?: (payload: {
+    sortBy?: string;
+    sortOrder?: "asc" | "desc" | undefined;
+  }) => void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   initialPageSize = 25,
+  currentSort,
+  currentSortOrder,
   onStateChange,
   onUserFilterChange,
+  onServerSortChange,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
@@ -81,6 +87,8 @@ export function DataTable<TData, TValue>({
     },
     initialState: {},
     // Always use server-side pagination; total pages unknown
+    manualFiltering: true,
+    manualSorting: true,
     manualPagination: true,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
@@ -89,9 +97,9 @@ export function DataTable<TData, TValue>({
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPaginationState,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    // getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    // getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
   });
@@ -130,7 +138,13 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="flex flex-col gap-4">
-      <DataTableToolbar table={table} onUserFilterChange={onUserFilterChange} />
+      <DataTableToolbar
+        table={table}
+        onUserFilterChange={onUserFilterChange}
+        onServerSortChange={onServerSortChange}
+        sortBy={currentSort}
+        sortOrder={currentSortOrder}
+      />
       <div className="overflow-hidden rounded-md border">
         <Table>
           <TableHeader>
