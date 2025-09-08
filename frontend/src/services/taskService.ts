@@ -12,13 +12,7 @@ export const fetchTasks = async (
   const offset =
     typeof params?.page === "number" ? (params.page - 1) * limit : 0;
 
-  const query: Record<string, unknown> = { limit, offset };
-
-  if (params?.search) query.search = params.search;
-  if (params?.status) query.status = params.status;
-  if (params?.priority) query.priority = params.priority;
-
-  console.log(params);
+  const query = { ...params, limit, offset };
 
   const res = await client.get<Task[]>("/tasks", { params: query });
   const tasks = res.data;
@@ -28,6 +22,7 @@ export const fetchTasks = async (
     typeof headerTotal === "string" && headerTotal !== ""
       ? Number(headerTotal)
       : tasks.length;
+  console.log(tasks);
   return { items: tasks, total };
 };
 
