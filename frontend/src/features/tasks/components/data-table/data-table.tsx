@@ -23,6 +23,7 @@ import {
 
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
+import { useTaskContext } from "@/providers/task/task-context";
 
 interface DataTableStateSnapshot {
   pageIndex: number;
@@ -36,33 +37,15 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   initialPageSize?: number;
-  totalCount?: number; // total results for server-side pagination
-  currentSort?: string;
-  currentSortOrder?: "asc" | "desc" | undefined;
-  onStateChange?: (state: {
-    pageIndex: number;
-    pageSize: number;
-    sorting: SortingState;
-    columnFilters: ColumnFiltersState;
-    columnVisibility: VisibilityState;
-  }) => void;
-  onUserFilterChange?: (userIds: (number | "null")[]) => void;
-  onServerSortChange?: (payload: {
-    sortBy?: string;
-    sortOrder?: "asc" | "desc" | undefined;
-  }) => void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   initialPageSize = 25,
-  currentSort,
-  currentSortOrder,
-  onStateChange,
-  onUserFilterChange,
-  onServerSortChange,
 }: DataTableProps<TData, TValue>) {
+  const { handleStateChange } = useTaskContext();
+
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
@@ -113,7 +96,7 @@ export function DataTable<TData, TValue>({
   const pageSize = pagination.pageSize;
 
   React.useEffect(() => {
-    if (!onStateChange) return;
+    if (!handleStateChange) return;
 
     const snapshot: DataTableStateSnapshot = {
       pageIndex,
@@ -123,9 +106,9 @@ export function DataTable<TData, TValue>({
       columnVisibility: columnVisibility || {},
     };
 
-    onStateChange(snapshot);
+    handleStateChange(snapshot);
   }, [
-    onStateChange,
+    handleStateChange,
     sorting,
     columnFilters,
     columnVisibility,
@@ -138,13 +121,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="flex flex-col gap-4">
-      <DataTableToolbar
-        table={table}
-        onUserFilterChange={onUserFilterChange}
-        onServerSortChange={onServerSortChange}
-        sortBy={currentSort}
-        sortOrder={currentSortOrder}
-      />
+      <DataTableToolbar table={table} />
       <div className="overflow-hidden rounded-md border">
         <Table>
           <TableHeader>

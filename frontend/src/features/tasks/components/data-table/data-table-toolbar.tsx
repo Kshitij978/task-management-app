@@ -10,25 +10,14 @@ import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 import { DataTableSortbyPopover } from "./data-table-sortby-popover";
 import { useSheet } from "@/providers/sheet/sheet-context";
 import { useUserContext } from "@/providers/user/user-context";
+import { useTaskContext } from "@/providers/task/task-context";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
-  sortBy?: string;
-  sortOrder: "asc" | "desc" | undefined;
-  onUserFilterChange?: (userIds: (number | "null")[]) => void;
-
-  onServerSortChange?: (payload: {
-    sortBy?: string;
-    sortOrder?: "asc" | "desc" | undefined;
-  }) => void;
 }
 
 export function DataTableToolbar<TData>({
   table,
-  sortBy,
-  sortOrder,
-  onUserFilterChange,
-  onServerSortChange,
 }: DataTableToolbarProps<TData>) {
   const {
     userOptions: users,
@@ -37,6 +26,12 @@ export function DataTableToolbar<TData>({
   } = useUserContext();
   const { openSheet } = useSheet();
   const isFiltered = table.getState().columnFilters.length > 0;
+
+  const { handleServerSortChange, handleUserFilterChange, params } =
+    useTaskContext();
+
+  const sortBy = params.sort;
+  const sortOrder = params.order;
 
   // Log error if users fail to load
   if (usersError) {
@@ -74,7 +69,7 @@ export function DataTableToolbar<TData>({
             title={usersLoading ? "Loading..." : "Assigned To"}
             options={users}
             onFilterChange={(_, userIds) => {
-              onUserFilterChange?.(userIds?.length ? userIds : []);
+              handleUserFilterChange?.(userIds?.length ? userIds : []);
             }}
           />
         )}
@@ -93,7 +88,7 @@ export function DataTableToolbar<TData>({
           sortBy={sortBy}
           sortOrder={sortOrder}
           onChange={({ sortBy, sortOrder }) => {
-            onServerSortChange?.({ sortBy, sortOrder });
+            handleServerSortChange?.({ sortBy, sortOrder });
           }}
         />
       </div>
