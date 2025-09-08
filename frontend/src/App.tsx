@@ -1,5 +1,5 @@
 import "./App.css";
-import Tasks from "./features/tasks/components";
+import { TaskManagement } from "./features";
 
 import { SheetProvider } from "./providers/sheet/sheet-provider";
 import { TaskProvider } from "./providers/task/task-provider";
@@ -11,7 +11,7 @@ function App() {
       <UserProvider>
         <TaskProvider>
           <SheetProvider>
-            <Tasks />
+            <TaskManagement />
           </SheetProvider>
         </TaskProvider>
       </UserProvider>
