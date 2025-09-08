@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTaskContext } from "@/providers/task/task-context";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -20,6 +21,8 @@ export function DataTablePagination<TData>({
   const pageIndex = table.getState().pagination.pageIndex;
   const pageSize = table.getState().pagination.pageSize;
   const rowCount = table.getRowModel().rows.length;
+
+  const { scheduleParams } = useTaskContext();
 
   // - Can go prev if pageIndex > 0
   // - Can go next if we received a full page worth of items
@@ -40,6 +43,7 @@ export function DataTablePagination<TData>({
               table.setPageSize(Number(value));
               // reset to first page when page size changes
               table.setPageIndex(0);
+              scheduleParams({ pageSize: Number(value) });
             }}
           >
             <SelectTrigger className="h-8 w-[70px]">
@@ -59,7 +63,10 @@ export function DataTablePagination<TData>({
             variant="outline"
             size="icon"
             className="size-8"
-            onClick={() => table.previousPage()}
+            onClick={() => {
+              table.previousPage();
+              scheduleParams({ page: pageIndex - 1 });
+            }}
             disabled={!canPrev}
           >
             <span className="sr-only">Previous</span>
@@ -72,7 +79,10 @@ export function DataTablePagination<TData>({
             variant="outline"
             size="icon"
             className="size-8"
-            onClick={() => table.nextPage()}
+            onClick={() => {
+              table.nextPage();
+              scheduleParams({ page: pageIndex + 1 });
+            }}
             disabled={!canNext}
           >
             <span className="sr-only">Next</span>

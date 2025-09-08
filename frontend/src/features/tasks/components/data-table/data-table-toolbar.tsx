@@ -68,15 +68,18 @@ export function DataTableToolbar<TData>({
     console.error("Failed to load users:", usersError);
   }
 
+  const { scheduleParams } = useTaskContext();
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center gap-2">
         <Input
           placeholder="Filter tasks by title or description..."
           value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("title")?.setFilterValue(event.target.value)
-          }
+          onChange={(event) => {
+            table.getColumn("title")?.setFilterValue(event.target.value);
+            scheduleParams({ search: event.target.value });
+          }}
           className="h-8 w-[150px] lg:w-[250px]"
         />
         <Dialog>
