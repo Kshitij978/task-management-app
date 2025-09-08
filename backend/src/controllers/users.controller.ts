@@ -73,11 +73,11 @@ export const createUserHandler = async (
     const user = await createUser(value);
     res.status(201).json(user);
   } catch (err: any) {
-    // handle unique constraint DB error defensively
-    if (err.code === "23505") {
-      throw new ConflictError("Username or email already exists");
+    if (err && (err as any).code === "23505") {
+      return next(new ConflictError("Username or email already exists"));
     }
-    next(err);
+
+    return next(err);
   }
 };
 
@@ -110,8 +110,9 @@ export const updateUserHandler = async (
     if (!updated) throw new NotFoundError("User");
     res.json(updated);
   } catch (err: any) {
-    if (err.code === "23505")
-      throw new ConflictError("Username or email already in use");
+    if (err && (err as any).code === "23505") {
+      return next(new ConflictError("Username or email already in use"));
+    }
     next(err);
   }
 };

@@ -57,6 +57,9 @@ export const getAllTasks = async (
       priority: parseCommaSeparated(req.query.priority as string | undefined),
       assigned_to: parseAssignedTo(req.query.assigned_to as string | undefined),
       search: req.query.search as string | undefined,
+      due_date_from:
+        (req.query.due_date_from as string | undefined) || undefined,
+      due_date_to: (req.query.due_date_to as string | undefined) || undefined,
       sort: (req.query.sort as string) || "created_at",
       order:
         (req.query.order as string) === "asc"

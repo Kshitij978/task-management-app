@@ -30,6 +30,8 @@ export async function findTasks(params: {
   priority?: string[];
   assigned_to?: (number | "null")[];
   search?: string;
+  due_date_from?: string;
+  due_date_to?: string;
   sort?: string;
   order?: "asc" | "desc";
   limit?: number;
@@ -40,6 +42,8 @@ export async function findTasks(params: {
     priority,
     assigned_to,
     search,
+    due_date_from,
+    due_date_to,
     sort = "created_at",
     order = "desc",
     limit = 20,
@@ -104,10 +108,24 @@ export async function findTasks(params: {
 
   // full-text search
   if (search && search.trim().length > 0) {
-    where.push(
-      `to_tsvector('english', coalesce(t.title,'') || ' ' || coalesce(t.description,'')) @@ plainto_tsquery('english', $${idx++})`
-    );
+    console.log(search);
+    where.push(`(
+      (coalesce(t.title,'') || ' ' || coalesce(t.description,'')) ILIKE $${idx++}
+      OR 
+      to_tsvector('english', coalesce(t.title,'') || ' ' || coalesce(t.description,'')) @@ plainto_tsquery('english', $${idx++})
+    )`);
+    values.push(`%${search.replace(/\s+/g, "%")}%`);
     values.push(search);
+  }
+
+  // due_date range filtering
+  if (due_date_from) {
+    where.push(`t.due_date >= $${idx++}`);
+    values.push(due_date_from);
+  }
+  if (due_date_to) {
+    where.push(`t.due_date <= $${idx++}`);
+    values.push(due_date_to);
   }
 
   const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
