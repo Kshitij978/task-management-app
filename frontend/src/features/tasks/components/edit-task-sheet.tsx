@@ -28,13 +28,13 @@ import {
 
 import type { Task } from "../types/task";
 import { priorities, statuses } from "../data/data";
-import { useUsersFilterOptions } from "../hooks/useUsers";
 import { useUpdateTask } from "../hooks/useTasks";
 import TextWithLoader from "@/components/text-with-loader";
 import { useSheet } from "@/providers/sheet/sheet-context";
+import { useUserContext } from "@/providers/user/user-context";
 
 export function EditTaskSheet() {
-  const { userOptions, isLoading: usersLoading } = useUsersFilterOptions();
+  const { userOptions, isLoading: usersLoading } = useUserContext();
   const { mutate: updateTask, isPending } = useUpdateTask();
   const { closeSheet, state, task: taskObj } = useSheet();
   const task = taskObj as Task;

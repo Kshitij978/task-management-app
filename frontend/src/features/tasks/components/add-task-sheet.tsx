@@ -18,7 +18,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreateTask } from "../hooks/useTasks";
-import { useUsersFilterOptions } from "../hooks/useUsers";
 import { priorities, statuses } from "../data/data";
 import { Loader2 } from "lucide-react";
 import { ApiError } from "@/services/api";
@@ -35,6 +34,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useSheet } from "@/providers/sheet/sheet-context";
+import { useUserContext } from "@/providers/user/user-context";
 
 // Domain constraints
 const MAX_TITLE_LENGTH = 200;
@@ -101,7 +101,7 @@ function showBoundaryToast(
 export function AddTaskSheet() {
   const { closeSheet, state } = useSheet();
   const { mutate: createTask, isPending } = useCreateTask();
-  const { userOptions, isLoading: usersLoading } = useUsersFilterOptions();
+  const { userOptions, isLoading: usersLoading } = useUserContext();
 
   const { control, handleSubmit, watch, setValue, reset, formState } =
     useForm<TaskFormData>({

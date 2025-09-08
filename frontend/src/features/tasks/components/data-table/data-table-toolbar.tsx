@@ -7,9 +7,9 @@ import { DataTableViewOptions } from "./data-table-view-options";
 
 import { priorities, statuses } from "../../data/data";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
-import { useUsersFilterOptions } from "../../hooks/useUsers";
 import { DataTableSortbyPopover } from "./data-table-sortby-popover";
 import { useSheet } from "@/providers/sheet/sheet-context";
+import { useUserContext } from "@/providers/user/user-context";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
@@ -34,7 +34,7 @@ export function DataTableToolbar<TData>({
     userOptions: users,
     isLoading: usersLoading,
     error: usersError,
-  } = useUsersFilterOptions();
+  } = useUserContext();
   const { openSheet } = useSheet();
   const isFiltered = table.getState().columnFilters.length > 0;
 
