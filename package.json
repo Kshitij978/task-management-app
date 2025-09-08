@@ -1,0 +1,23 @@
+{
+  "name": "task-management-app",
+  "version": "1.0.0",
+  "description": "This assessment evaluates your problem-solving skills, attention to detail, and coding practices through building a task management system. You have **2-3 days** to complete this project.",
+  "homepage": "https://github.com/Kshitij978/task-management-app#readme",
+  "bugs": {
+    "url": "https://github.com/Kshitij978/task-management-app/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kshitij978/task-management-app.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "scripts": {
+    "start:db": "docker compose up -d",
+    "start:frontend": "cd frontend && npm run dev",
+    "start:backend": "cd backend && npm run dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
+
