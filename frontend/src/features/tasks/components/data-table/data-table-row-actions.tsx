@@ -10,14 +10,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import * as React from "react";
 import type { Task } from "../../types/task";
-import { EditTaskSheet } from "../edit-task-sheet";
 import { useLayout } from "@/providers/layout/layout-context";
 import { useDeleteTask } from "../../hooks/useTasks";
+import { useSheet } from "@/providers/sheet/sheet-context";
 
 export function DataTableRowActions({ task }: { task: Task }) {
-  const [openEdit, setOpenEdit] = React.useState(false);
+  // const [openEdit, setOpenEdit] = React.useState(false);
+  const { openSheet: setOpenEdit } = useSheet();
   const { openDelete } = useLayout();
   const { mutate: deleteTask } = useDeleteTask();
 
@@ -37,7 +37,9 @@ export function DataTableRowActions({ task }: { task: Task }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[160px]">
-          <DropdownMenuItem onSelect={() => setOpenEdit(true)}>
+          <DropdownMenuItem
+            onSelect={() => setOpenEdit({ mode: "edit", task })}
+          >
             Edit
           </DropdownMenuItem>
 
@@ -48,7 +50,6 @@ export function DataTableRowActions({ task }: { task: Task }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <EditTaskSheet open={openEdit} onOpenChange={setOpenEdit} task={task} />
     </>
   );
 }

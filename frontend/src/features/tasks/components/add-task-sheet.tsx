@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -8,7 +7,6 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +34,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useSheet } from "@/providers/sheet/sheet-context";
 
 // Domain constraints
 const MAX_TITLE_LENGTH = 200;
@@ -99,8 +98,8 @@ function showBoundaryToast(
   }
 }
 
-export function AddTaskSheet({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+export function AddTaskSheet() {
+  const { closeSheet, state } = useSheet();
   const { mutate: createTask, isPending } = useCreateTask();
   const { userOptions, isLoading: usersLoading } = useUsersFilterOptions();
 
@@ -159,7 +158,7 @@ export function AddTaskSheet({ children }: { children: React.ReactNode }) {
           due_date_date: "",
           assigned_to: null,
         });
-        setOpen(false);
+        closeSheet();
       },
       onError: (error: unknown) => {
         if (error instanceof ApiError) {
@@ -180,8 +179,10 @@ export function AddTaskSheet({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>{children}</SheetTrigger>
+    <Sheet
+      open={state.open && state.mode === "create"}
+      onOpenChange={closeSheet}
+    >
       <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Add New Task</SheetTitle>
@@ -395,7 +396,7 @@ export function AddTaskSheet({ children }: { children: React.ReactNode }) {
                   due_date_date: "",
                   assigned_to: null,
                 });
-                setOpen(false);
+                closeSheet();
               }}
               disabled={isPending}
             >

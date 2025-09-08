@@ -31,16 +31,13 @@ import { priorities, statuses } from "../data/data";
 import { useUsersFilterOptions } from "../hooks/useUsers";
 import { useUpdateTask } from "../hooks/useTasks";
 import TextWithLoader from "@/components/text-with-loader";
+import { useSheet } from "@/providers/sheet/sheet-context";
 
-type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  task: Task;
-};
-
-export function EditTaskSheet({ open, onOpenChange, task }: Props) {
+export function EditTaskSheet() {
   const { userOptions, isLoading: usersLoading } = useUsersFilterOptions();
   const { mutate: updateTask, isPending } = useUpdateTask();
+  const { closeSheet, state, task: taskObj } = useSheet();
+  const task = taskObj as Task;
 
   // Local editable state kept minimal; reuse same constraints/UX as add sheet
   const [form, setForm] = useState({
@@ -55,7 +52,7 @@ export function EditTaskSheet({ open, onOpenChange, task }: Props) {
   });
 
   useEffect(() => {
-    if (!open) return;
+    if (!state.open || state.mode !== "edit" || !task) return;
     setForm({
       title: task.title,
       description: task.description ?? "",
@@ -66,7 +63,7 @@ export function EditTaskSheet({ open, onOpenChange, task }: Props) {
         : "",
       assigned_to: task.assigned_to ?? null,
     });
-  }, [open, task]);
+  }, [task, state]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +97,7 @@ export function EditTaskSheet({ open, onOpenChange, task }: Props) {
       {
         onSuccess: () => {
           toast.success("Task updated");
-          onOpenChange(false);
+          closeSheet();
         },
         onError: () => toast.error("Failed to update task"),
       }
@@ -108,7 +105,7 @@ export function EditTaskSheet({ open, onOpenChange, task }: Props) {
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={state.open && state.mode === "edit"} onOpenChange={closeSheet}>
       <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Edit Task</SheetTitle>
@@ -263,7 +260,7 @@ export function EditTaskSheet({ open, onOpenChange, task }: Props) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => closeSheet}
               disabled={isPending}
             >
               Cancel

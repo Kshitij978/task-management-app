@@ -7,6 +7,7 @@ import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
 import dayjs from "dayjs";
 import type { Task } from "../../types/task";
+import { useSheet } from "@/providers/sheet/sheet-context";
 
 export const columns: ColumnDef<Task>[] = [
   {
@@ -52,13 +53,25 @@ export const columns: ColumnDef<Task>[] = [
       <DataTableColumnHeader column={column} title="Title" />
     ),
     cell: ({ row }) => {
-      return (
-        <div className="flex gap-2">
-          <span className="max-w-[500px] truncate font-medium">
-            {row.getValue("title")}
-          </span>
-        </div>
-      );
+      const TitleCell = () => {
+        const { openSheet, setTask } = useSheet();
+        return (
+          <>
+            <div
+              className="flex gap-2"
+              onClick={() => {
+                setTask(row.original);
+                openSheet({ mode: "view", task: row.original });
+              }}
+            >
+              <span className="max-w-[500px] truncate font-medium">
+                {row.getValue("title")}
+              </span>
+            </div>
+          </>
+        );
+      };
+      return <TitleCell />;
     },
   },
   {
