@@ -16,8 +16,7 @@ import { useDeleteTask } from "../../hooks/useTasks";
 import { useSheet } from "@/providers/sheet/sheet-context";
 
 export function DataTableRowActions({ task }: { task: Task }) {
-  // const [openEdit, setOpenEdit] = React.useState(false);
-  const { openSheet: setOpenEdit } = useSheet();
+  const { openSheet: setOpenEdit, setTask } = useSheet();
   const { openDelete } = useLayout();
   const { mutate: deleteTask } = useDeleteTask();
 
@@ -38,7 +37,10 @@ export function DataTableRowActions({ task }: { task: Task }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[160px]">
           <DropdownMenuItem
-            onSelect={() => setOpenEdit({ mode: "edit", task })}
+            onSelect={() => {
+              setTask(task);
+              setOpenEdit({ mode: "edit", task });
+            }}
           >
             Edit
           </DropdownMenuItem>
