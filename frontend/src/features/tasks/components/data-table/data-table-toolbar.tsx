@@ -1,5 +1,5 @@
 import { type Table } from "@tanstack/react-table";
-import { X } from "lucide-react";
+import { FilterIcon, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,15 @@ import { useUserContext } from "@/providers/user/user-context";
 import { useTaskContext } from "@/providers/task/task-context";
 
 import { DataTableDueDateFilter } from "./data-table-duedate-filter";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
@@ -31,8 +40,9 @@ export function DataTableToolbar<TData>({
     handleServerSortChange,
     handleUserFilterChange,
     params,
-    mergeParams,
+    stageParams,
     resetFilters,
+    sendFilteredQuery,
   } = useTaskContext();
 
   const sortBy = params.sort;
@@ -62,45 +72,74 @@ export function DataTableToolbar<TData>({
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center gap-2">
         <Input
-          placeholder="Filter tasks..."
+          placeholder="Filter tasks by title or description..."
           value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
             table.getColumn("title")?.setFilterValue(event.target.value)
           }
           className="h-8 w-[150px] lg:w-[250px]"
         />
-        {table.getColumn("status") && (
-          <DataTableFacetedFilter
-            column={table.getColumn("status")}
-            title="Status"
-            options={statuses}
-          />
-        )}
-        {table.getColumn("priority") && (
-          <DataTableFacetedFilter
-            column={table.getColumn("priority")}
-            title="Priority"
-            options={priorities}
-          />
-        )}
-        {table.getColumn("assigned_user_name") && (
-          <DataTableFacetedFilter
-            column={table.getColumn("assigned_user_name")}
-            title={usersLoading ? "Loading..." : "Assigned To"}
-            options={users}
-            onFilterChange={(_, userIds) => {
-              handleUserFilterChange?.(userIds?.length ? userIds : []);
-            }}
-          />
-        )}
-
-        <DataTableDueDateFilter
-          dueFrom={dueFrom}
-          dueTo={dueTo}
-          params={params}
-          mergeParams={mergeParams}
-        />
-
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button
+              variant="outline"
+              className={`${isFiltered && "bg-blue-100"}`}
+              size="sm"
+            >
+              <FilterIcon className="mr-2 h-4 w-4" />
+              Filters
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Filters</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-4">
+              {table.getColumn("status") && (
+                <DataTableFacetedFilter
+                  column={table.getColumn("status")}
+                  title="Status"
+                  options={statuses}
+                />
+              )}
+              {table.getColumn("priority") && (
+                <DataTableFacetedFilter
+                  column={table.getColumn("priority")}
+                  title="Priority"
+                  options={priorities}
+                />
+              )}
+              {table.getColumn("assigned_user_name") && (
+                <DataTableFacetedFilter
+                  column={table.getColumn("assigned_user_name")}
+                  title={usersLoading ? "Loading..." : "Assigned To"}
+                  options={users}
+                  onFilterChange={(_, userIds) => {
+                    handleUserFilterChange?.(userIds?.length ? userIds : []);
+                  }}
+                />
+              )}
+              <DataTableDueDateFilter
+                dueFrom={dueFrom}
+                dueTo={dueTo}
+                params={params}
+                mergeParams={stageParams}
+              />
+            </div>
+            <DialogFooter className="w-full">
+              <DialogClose asChild>
+                <Button
+                  onClick={() => {
+                    sendFilteredQuery();
+                  }}
+                  className="w-full"
+                >
+                  Apply
+                </Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <DataTableSortbyPopover
           sortBy={sortBy}
           sortOrder={sortOrder}
@@ -108,7 +147,6 @@ export function DataTableToolbar<TData>({
             handleServerSortChange?.({ sortBy, sortOrder });
           }}
         />
-
         {(isFiltered || isSorting) && (
           <Button
             variant="ghost"
@@ -134,3 +172,4 @@ export function DataTableToolbar<TData>({
     </div>
   );
 }
+

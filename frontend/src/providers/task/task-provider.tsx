@@ -35,6 +35,10 @@ export interface TaskContextValue {
     patch: Partial<TaskQueryParams>,
     opts?: { resetPage?: boolean }
   ) => void;
+  stageParams: (
+    patch: Partial<TaskQueryParams>,
+    opts?: { resetPage?: boolean }
+  ) => void;
   resetFilters: () => void;
 
   // selected user ids / setter
@@ -48,6 +52,8 @@ export interface TaskContextValue {
     sortBy?: string;
     sortOrder?: "asc" | "desc" | undefined;
   }) => void;
+
+  sendFilteredQuery: () => void;
 
   // data fetching values (moved here)
   data: ReturnType<typeof useTasks> extends { data: infer D } ? D : unknown;
@@ -95,6 +101,8 @@ export function TaskProvider({
     [debouncedSet]
   );
 
+  const [appliedFilters, setAppliedFilters] = useState<TaskQueryParams>({});
+
   const mergeParams = useCallback(
     (patch: Partial<TaskQueryParams>, opts?: { resetPage?: boolean }) => {
       setParamsState((prev) => {
@@ -125,6 +133,30 @@ export function TaskProvider({
 
   // selected users
   const [selectedUserIds, setSelectedUserIds] = useState<(number | "null")[]>(
+    []
+  );
+
+  // stage params without triggering immediate fetch; used by inline filter UIs
+  const stageParams = useCallback(
+    (patch: Partial<TaskQueryParams>, opts?: { resetPage?: boolean }) => {
+      setAppliedFilters((prev) => {
+        const base: TaskQueryParams =
+          prev && Object.keys(prev).length > 0
+            ? prev
+            : (paramsRef.current as TaskQueryParams);
+        const merged: TaskQueryParams = {
+          ...base,
+          ...patch,
+        } as TaskQueryParams;
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === undefined) {
+            delete (merged as Record<string, unknown>)[key];
+          }
+        }
+        if (opts?.resetPage) merged.page = 1;
+        return merged;
+      });
+    },
     []
   );
 
@@ -187,21 +219,27 @@ export function TaskProvider({
         return;
       }
       const next = buildParamsFromSnapshot(snapshot);
-      scheduleParams(next);
+      setAppliedFilters(next);
     },
-    [buildParamsFromSnapshot, scheduleParams, ignoreNextSnapshot]
+    [buildParamsFromSnapshot, setAppliedFilters, ignoreNextSnapshot]
   );
 
   const handleUserFilterChange = useCallback(
     (userIds: (number | "null")[]) => {
       setSelectedUserIds(userIds);
-      mergeParams(
+      stageParams(
         { assigned_to: userIds.length ? userIds.join(",") : undefined },
         { resetPage: true }
       );
     },
-    [mergeParams]
+    [stageParams]
   );
+
+  const sendFilteredQuery = useCallback(() => {
+    if (appliedFilters) {
+      scheduleParams(appliedFilters);
+    }
+  }, [appliedFilters, scheduleParams]);
 
   const { data, isLoading, error, refetch } = useTasks(params);
 
@@ -211,7 +249,9 @@ export function TaskProvider({
       paramsRef,
       setParams,
       scheduleParams,
+      sendFilteredQuery,
       mergeParams,
+      stageParams,
       resetFilters,
       selectedUserIds,
       setSelectedUserIds,
@@ -227,7 +267,9 @@ export function TaskProvider({
       params,
       setParams,
       scheduleParams,
+      sendFilteredQuery,
       mergeParams,
+      stageParams,
       resetFilters,
       selectedUserIds,
       setSelectedUserIds,

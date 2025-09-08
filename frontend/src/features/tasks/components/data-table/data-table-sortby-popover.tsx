@@ -12,7 +12,13 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { Check, ChevronDown, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ArrowUp,
+  ArrowDown,
+  ArrowDownUpIcon,
+} from "lucide-react";
 
 export type SortOrder = "asc" | "desc";
 
@@ -50,6 +56,7 @@ export function DataTableSortbyPopover({ sortBy, sortOrder, onChange }: Props) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="flex items-center gap-2">
+          <ArrowDownUpIcon className="h-4 w-4" />
           Sort by
           <span className="text-xs text-muted-foreground">
             {currentFieldLabel}
