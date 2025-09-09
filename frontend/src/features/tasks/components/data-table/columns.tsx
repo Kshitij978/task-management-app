@@ -64,7 +64,7 @@ export const columns: ColumnDef<Task>[] = [
                 openSheet({ mode: "view", task: row.original });
               }}
             >
-              <span className="max-w-[500px] truncate font-medium">
+              <span className="max-w-[500px] hover:border-b border-black cursor-pointer truncate font-medium">
                 {row.getValue("title")}
               </span>
             </div>
